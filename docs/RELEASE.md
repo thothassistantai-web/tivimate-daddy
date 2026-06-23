@@ -16,7 +16,9 @@ GITHUB_RELEASE_REPO=thothassistantai-web/tivimate-daddy
 ```
 
 `VERSION_CODE` must increase monotonically: `major*10000 + minor*100 + patch` (e.g. `2.0.0` → `20000`).  
-In the monorepo, bump [`STEPDADDY_VERSION`](../../STEPDADDY_VERSION) first, then sync local `VERSION` / run `./scripts/sync-version.sh`.
+Bump [`STEPDADDY_VERSION`](../STEPDADDY_VERSION) first (canonical in this repo; monorepo checkouts may also use `../STEPDADDY_VERSION`), then sync local `VERSION` / run `./scripts/sync-version.sh`.
+
+Verify alignment: `./scripts/verify-stepdaddy-version.sh`
 
 2. Update [`CHANGELOG.md`](../CHANGELOG.md) — move `Unreleased` items into a dated section.
 
@@ -41,7 +43,21 @@ In the monorepo, bump [`STEPDADDY_VERSION`](../../STEPDADDY_VERSION) first, then
 | apktool | `tools/apktool.jar` |
 | Decoded base | `stepdaddy-patch/decoded/` (4.6.1 mod — not committed; bootstrap from ONN `tivimate-usb.apk`) |
 
-Signing uses `stepdaddy-patch/out/stepdaddy.keystore` (generated on first build). **Keep the same keystore** across patch releases so `adb install -r` upgrades work.
+Signing uses `stepdaddy-patch/out/stepdaddy.keystore` (generated on first build if missing). **Keep the same keystore** across patch releases so `adb install -r` upgrades work.
+
+## APK signing key
+
+**2.0.0** was signed with a **new** `stepdaddy-patch/out/stepdaddy.keystore` created during the 2.0.0 release build. The keystore is **gitignored** (see `.gitignore`) and is **not** stored in this repository.
+
+| Scenario | Action |
+|----------|--------|
+| Upgrade from **older StepDaddy** TiviMate (different signing key) | **Uninstall** `ar.tvplayer.tv` first, then install 2.0.0+. Android blocks in-place upgrades across keys. |
+| Upgrade within **same key** (future 2.0.x from this keystore) | `adb install -r` or in-app updater |
+| Lost keystore | `build.sh` generates a new one — fleet must uninstall before any build signed with the new key |
+
+**Maintainers:** reuse `stepdaddy-patch/out/stepdaddy.keystore` for every release. Back it up to a secure location (encrypted volume, password manager, or CI secret `STEPDADDY_KEYSTORE_B64`). Default self-signed credentials: store/key password `stepdaddy`, alias `stepdaddy`. **Do not** commit the keystore to git.
+
+See also [`stepdaddy-patch/README.md`](../stepdaddy-patch/README.md) → Fleet rollout → Signature.
 
 ## Build outputs
 
@@ -54,7 +70,7 @@ Signing uses `stepdaddy-patch/out/stepdaddy.keystore` (generated on first build)
 
 ## GitHub Release (manual)
 
-**Self-signed APK** — release notes should mention `stepdaddy.keystore` signing.
+**Self-signed APK** — release notes must mention `stepdaddy.keystore` signing and uninstall-before-upgrade when the signing key changes (see **APK signing key** above).
 
 ```bash
 PATCH_VERSION=$(grep ^PATCH_VERSION= VERSION | cut -d= -f2)
@@ -101,6 +117,7 @@ After publish, set `apkUrl` in:
 - [ ] `curl :4617/status` reports expected `patchVersion` on test stick
 - [ ] Gateway auto-setup + tune smoke test with StepDaddy Gateway on `:3000`
 - [ ] `install_apps_catalog.json` version / URL updated in gateway repo
+- [ ] `./scripts/verify-stepdaddy-version.sh` passes
 - [ ] Same `stepdaddy.keystore` used (or fleet must uninstall before install)
 
 ## CI workflow

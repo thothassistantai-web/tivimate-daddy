@@ -3,7 +3,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MONOREPO_VERSION="${ROOT}/../STEPDADDY_VERSION"
+MONOREPO_VERSION=""
+if [[ -f "${ROOT}/STEPDADDY_VERSION" ]]; then
+  MONOREPO_VERSION="${ROOT}/STEPDADDY_VERSION"
+elif [[ -f "${ROOT}/../STEPDADDY_VERSION" ]]; then
+  MONOREPO_VERSION="${ROOT}/../STEPDADDY_VERSION"
+fi
 VERSION_FILE="${ROOT}/VERSION"
 CONSTANTS_JAVA="${ROOT}/stepdaddy-patch/src/ar/tvplayer/tv/stepdaddy/StepDaddyConstants.java"
 
@@ -13,7 +18,7 @@ read_prop() {
   grep -E "^${key}=" "${file}" | head -1 | cut -d= -f2-
 }
 
-if [[ -f "${MONOREPO_VERSION}" ]]; then
+if [[ -n "${MONOREPO_VERSION}" && -f "${MONOREPO_VERSION}" ]]; then
   PATCH_VERSION="$(read_prop "${MONOREPO_VERSION}" STEPDADDY_VERSION)"
   VERSION_CODE="$(read_prop "${MONOREPO_VERSION}" VERSION_CODE)"
   echo "==> Using monorepo ${MONOREPO_VERSION}"

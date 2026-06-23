@@ -7,7 +7,7 @@ Works **with StepDaddy Gateway** (recommended) or is **non-functional alone** (n
 | | |
 |---|---|
 | **Output APK** | `research/tivimate-apk/TiviMate-4.6.1-StepDaddy.apk` |
-| **Patch version** | `2.0.0` — canonical in [`../VERSION`](../VERSION) or monorepo [`STEPDADDY_VERSION`](../../STEPDADDY_VERSION), synced to `StepDaddyConstants.PATCH_VERSION` |
+| **Patch version** | `2.0.0` — canonical in [`STEPDADDY_VERSION`](../STEPDADDY_VERSION), [`VERSION`](../VERSION), or monorepo `../STEPDADDY_VERSION`; synced to `StepDaddyConstants.PATCH_VERSION` |
 | **TiViMate base** | ONN USB mod (`tivimate-usb.apk`, versionCode 4610) |
 | **Gateway pairing** | `2.0.0` recommended (`GET /tivimate-handshake`) |
 | **Log tag** | `StepDaddyBridge` |
@@ -335,7 +335,18 @@ adb -s $DEV shell 'ss -lntp | grep 4617'
 
 ## Fleet rollout notes
 
-1. **Signature** — Patch is signed with `out/stepdaddy.keystore` (not the ONN mod cert). Uninstall stock/mod TiViMate before install, or use `adb install -r` if replacing an older StepDaddy build with the same key.
+### APK signing key (`out/stepdaddy.keystore`)
+
+The patch APK is signed with `stepdaddy-patch/out/stepdaddy.keystore` (not the ONN mod cert). The file is **gitignored** and must be **backed up** outside the repo.
+
+- **2.0.0** introduced a **new** keystore generated on first build after the suite version refresh. Devices on **older StepDaddy** builds signed with a different key must **uninstall** `ar.tvplayer.tv` before installing 2.0.0+.
+- **Future releases** must **reuse** the same keystore so `adb install -r` and the in-app updater work without uninstall.
+- If the keystore is deleted, `build.sh` auto-generates a new one — treat that as a key rotation; document it in release notes and expect fleet uninstalls.
+- CI can inject the keystore via secret `STEPDADDY_KEYSTORE_B64` (see `docs/RELEASE.md`).
+
+Default self-signed credentials: store/key password `stepdaddy`, alias `stepdaddy`.
+
+1. **Signature** — Patch is signed with `out/stepdaddy.keystore` (not the ONN mod cert). Uninstall stock/mod TiViMate before install, or use `adb install -r` if replacing an older StepDaddy build **signed with the same key**.
 2. **Gateway first** — Ensure StepDaddy Gateway listens on `127.0.0.1:3000` before first launch; auto-setup runs once per device unless playlist is cleared.
 3. **Playlist groups** — After wizard completes, confirm **Manage Groups → sort by order in playlist** (same as manual setup in RE-DEEP-DIVE).
 4. **HTTP 4617** — Not exposed off-device by default; use `adb forward` or a fleet agent on-device. No auth on the control port — bind is device-local only in practice.
