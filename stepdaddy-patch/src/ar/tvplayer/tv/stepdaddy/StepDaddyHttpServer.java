@@ -100,13 +100,11 @@ final class StepDaddyHttpServer implements Runnable {
             }
             if ("/status".equals(path) || "/".equals(path)) {
                 StepDaddySetup.refreshSetupState(context);
-                JSONObject json = new JSONObject();
+                JSONObject json = StepDaddyState.buildStateJson(context);
                 json.put("ok", true);
                 json.put("package", context.getPackageName());
                 json.put("gateway", StepDaddyPrefs.gatewayBase(context));
-                json.put("setupDone", StepDaddyPrefs.isSetupDone(context));
                 json.put("port", StepDaddyConstants.HTTP_PORT);
-                json.put("patchVersion", StepDaddyConstants.PATCH_VERSION);
                 return jsonResponse(json);
             }
             if ("/setup".equals(path)) {

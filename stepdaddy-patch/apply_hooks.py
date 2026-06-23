@@ -17,9 +17,6 @@ def write_text(path: Path, content: str) -> None:
 
 
 def patch_manifest(manifest: str) -> str:
-    if "StepDaddyBridgeActivity" in manifest:
-        return manifest
-
     bridge_activity = """
         <activity android:exported="true" android:name="ar.tvplayer.tv.stepdaddy.StepDaddyBridgeActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
@@ -49,7 +46,21 @@ def patch_manifest(manifest: str) -> str:
                 <action android:name="ar.tvplayer.tv.action.STEPDADDY_HTTP_STOP"/>
             </intent-filter>
         </receiver>
+        <receiver android:exported="true" android:name="ar.tvplayer.tv.stepdaddy.StepDaddyPackageReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <data android:scheme="package"/>
+            </intent-filter>
+        </receiver>
         <service android:exported="false" android:name="ar.tvplayer.tv.stepdaddy.StepDaddyHttpService"/>"""
+
+    package_receiver = """
+        <receiver android:exported="true" android:name="ar.tvplayer.tv.stepdaddy.StepDaddyPackageReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <data android:scheme="package"/>
+            </intent-filter>
+        </receiver>"""
 
     main_intent_filter = """
             <intent-filter>
@@ -75,17 +86,31 @@ def patch_manifest(manifest: str) -> str:
             1,
         )
 
-    manifest = manifest.replace(
-        "<service android:name=\"ar.tvplayer.tv.commons.RestartAppService\"/>",
-        bridge_activity + "\n        <service android:name=\"ar.tvplayer.tv.commons.RestartAppService\"/>",
-        1,
-    )
+    if "StepDaddyBridgeActivity" not in manifest:
+        manifest = manifest.replace(
+            "<service android:name=\"ar.tvplayer.tv.commons.RestartAppService\"/>",
+            bridge_activity + "\n        <service android:name=\"ar.tvplayer.tv.commons.RestartAppService\"/>",
+            1,
+        )
+    elif "StepDaddyPackageReceiver" not in manifest:
+        manifest = manifest.replace(
+            "<service android:name=\"ar.tvplayer.tv.commons.RestartAppService\"/>",
+            package_receiver + "\n        <service android:name=\"ar.tvplayer.tv.commons.RestartAppService\"/>",
+            1,
+        )
 
     settings_export = [
         "ar.tvplayer.tv.settings.ui.SettingsActivity",
         "ar.tvplayer.tv.settings.ui.playlists.PlaylistActivity",
     ]
     for activity in settings_export:
+        if f'android:name="{activity}"' not in manifest:
+            continue
+        if re.search(
+            rf'android:exported="[^"]+"\s+android:name="{re.escape(activity)}"',
+            manifest,
+        ):
+            continue
         manifest = manifest.replace(
             f'android:name="{activity}"',
             f'android:exported="true" android:name="{activity}"',
@@ -249,17 +274,85 @@ def patch_about_settings_fragment(smali: str) -> str:
     hook = """
     invoke-static {p0}, Lar/tvplayer/tv/stepdaddy/StepDaddyUpdateUi;->attachAbout(Ljava/lang/Object;)V"""
 
-    if "StepDaddyUpdateUi;->attachAbout" in smali:
+    if "StepDaddyUpdateUi;->attachAbout" not in smali:
+        marker = (
+            "invoke-super {p0, p1, p2}, "
+            "Landroidx/leanback/preference/LeanbackPreferenceFragmentCompat;->onViewCreated"
+            "(Landroid/view/View;Landroid/os/Bundle;)V"
+        )
+        if marker not in smali:
+            raise RuntimeError("AboutSettingsFragment.onViewCreated marker not found")
+        smali = smali.replace(marker, marker + hook, 1)
+
+    return patch_about_check_for_update_click(smali)
+
+
+def patch_about_check_for_update_click(smali: str) -> str:
+    """Route stock checkForNewVersion preference to StepDaddy GitHub updater."""
+    if "StepDaddyUpdateUi;->onManualCheck" in smali:
         return smali
 
-    marker = (
-        "invoke-super {p0, p1, p2}, "
-        "Landroidx/leanback/preference/LeanbackPreferenceFragmentCompat;->onViewCreated"
-        "(Landroid/view/View;Landroid/os/Bundle;)V"
-    )
-    if marker not in smali:
-        raise RuntimeError("AboutSettingsFragment.onViewCreated marker not found")
-    return smali.replace(marker, marker + hook, 1)
+    native_check = """    invoke-virtual {p0, v2}, Lar/tvplayer/tv/settings/ui/about/AboutSettingsFragment;->ؠ(Z)V
+
+    invoke-virtual {p0}, Lar/tvplayer/tv/settings/ui/about/AboutSettingsFragment;->މ()Lଷ;
+
+    move-result-object p1
+
+    invoke-static {p0}, Lથ;->ؠ(Landroidx/fragment/app/Fragment;)I
+
+    move-result v1
+
+    if-eqz p1, :cond_2
+
+    new-instance v0, Lঈ;
+
+    invoke-direct {v0, p1}, Lঈ;-><init>(Lଷ;)V
+
+    new-array p1, v3, [Lm70;
+
+    invoke-static {v1}, Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;
+
+    move-result-object v1
+
+    new-instance v3, Lm70;
+
+    const-string v5, "versionCode"
+
+    invoke-direct {v3, v5, v1}, Lm70;-><init>(Ljava/lang/Object;Ljava/lang/Object;)V
+
+    aput-object v3, p1, v4
+
+    new-instance v1, Lm70;
+
+    const-string v3, ""
+
+    const-string v4, "deviceObjectId"
+
+    invoke-direct {v1, v4, v3}, Lm70;-><init>(Ljava/lang/Object;Ljava/lang/Object;)V
+
+    aput-object v1, p1, v2
+
+    invoke-static {p1}, Lx70;->֏([Lm70;)Ljava/util/Map;
+
+    move-result-object p1
+
+    new-instance v1, Lચ;
+
+    invoke-direct {v1, v0}, Lચ;-><init>(Ll90;)V
+
+    const-string v0, "checkAppInfo_v2"
+
+    invoke-static {v0, p1, v1}, Lcom/parse/ParseCloud;->callFunctionInBackground(Ljava/lang/String;Ljava/util/Map;Lcom/parse/FunctionCallback;)V
+
+    goto/16 :goto_15"""
+
+    stepdaddy_check = """    invoke-static {p0}, Lar/tvplayer/tv/stepdaddy/StepDaddyUpdateUi;->onManualCheck(Ljava/lang/Object;)V
+
+    goto/16 :goto_15"""
+
+    if native_check not in smali:
+        raise RuntimeError("AboutSettingsFragment checkForNewVersion handler not found")
+    return smali.replace(native_check, stepdaddy_check, 1)
 
 
 def main() -> None:

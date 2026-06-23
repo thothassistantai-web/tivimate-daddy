@@ -4,9 +4,16 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.text.TextUtils;
 
 public final class StepDaddyHooks {
+    private static final long AUTO_SETUP_POLL_INITIAL_MS = 500L;
+    private static final long AUTO_SETUP_POLL_INTERVAL_MS = 1_000L;
+    private static final long AUTO_SETUP_POLL_MAX_MS = 60_000L;
+
     private StepDaddyHooks() {
     }
 
@@ -14,7 +21,7 @@ public final class StepDaddyHooks {
         StepDaddyActivityHolder.setMainActivity(activity);
         handleIntent(activity, activity.getIntent());
         StepDaddyHttpServerHolder.ensureStarted(activity);
-        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+        new Handler(Looper.getMainLooper()).postDelayed(
             new Runnable() {
                 @Override
                 public void run() {
@@ -23,16 +30,7 @@ public final class StepDaddyHooks {
             },
             8_000L
         );
-        // Defer SQLite reads until Room finishes opening TvPlayer.db on cold start.
-        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-            new Runnable() {
-                @Override
-                public void run() {
-                    StepDaddySetup.runAutoSetupIfNeeded(activity);
-                }
-            },
-            2_000L
-        );
+        scheduleAutoSetupWhenDbReady(activity);
     }
 
     public static void onMainActivityNewIntent(Activity activity, Intent intent) {
@@ -47,6 +45,7 @@ public final class StepDaddyHooks {
 
     public static void onMainActivityDestroy(Activity activity) {
         StepDaddyActivityHolder.clearMainActivity(activity);
+        StepDaddySetup.clearUpgradeSession(activity);
     }
 
     public static void handleUri(Context context, Uri uri) {
@@ -157,5 +156,28 @@ public final class StepDaddyHooks {
                 StepDaddyLog.w("Unknown stepdaddy host: " + host);
                 break;
         }
+    }
+
+    private static void scheduleAutoSetupWhenDbReady(final Activity activity) {
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final long startedAt = SystemClock.uptimeMillis();
+        final Runnable poller = new Runnable() {
+            @Override
+            public void run() {
+                if (StepDaddyDb.isTvPlayerDbReadable(activity)) {
+                    StepDaddySetup.detectUpgrade(activity);
+                    StepDaddySetup.runAutoSetupIfNeeded(activity);
+                    return;
+                }
+                if (SystemClock.uptimeMillis() - startedAt < AUTO_SETUP_POLL_MAX_MS) {
+                    handler.postDelayed(this, AUTO_SETUP_POLL_INTERVAL_MS);
+                    return;
+                }
+                StepDaddyLog.w("TvPlayer.db not readable after " + AUTO_SETUP_POLL_MAX_MS + "ms; running setup checks anyway");
+                StepDaddySetup.detectUpgrade(activity);
+                StepDaddySetup.runAutoSetupIfNeeded(activity);
+            }
+        };
+        handler.postDelayed(poller, AUTO_SETUP_POLL_INITIAL_MS);
     }
 }

@@ -1,7 +1,8 @@
 # TiviMate Daddy (StepDaddy patch) — canonical release version
+# PATCH_VERSION mirrors STEPDADDY_VERSION in ../../STEPDADDY_VERSION (monorepo source of truth).
 # sync-version.sh copies PATCH_VERSION and VERSION_CODE into StepDaddyConstants.java before build.
-PATCH_VERSION=1.3.0-about-update
+PATCH_VERSION=2.0.0
 BASE_TIVIMATE_VERSION=4.6.1
-VERSION_CODE=10300
+VERSION_CODE=20000
 APK_BASENAME=TiviMate-4.6.1-StepDaddy
 GITHUB_RELEASE_REPO=thothassistantai-web/tivimate-daddy

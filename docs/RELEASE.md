@@ -9,13 +9,14 @@ Gateway release process: [stepdaddy-gateway-android/docs/RELEASE.md](https://git
 1. Edit [`VERSION`](../VERSION):
 
 ```properties
-PATCH_VERSION=1.2.2-my-codename
+PATCH_VERSION=2.0.0
 BASE_TIVIMATE_VERSION=4.6.1
-VERSION_CODE=10202
+VERSION_CODE=20000
 GITHUB_RELEASE_REPO=thothassistantai-web/tivimate-daddy
 ```
 
-`VERSION_CODE` must increase monotonically: `major*10000 + minor*100 + patch` (e.g. `1.2.2` → `10202`).
+`VERSION_CODE` must increase monotonically: `major*10000 + minor*100 + patch` (e.g. `2.0.0` → `20000`).  
+In the monorepo, bump [`STEPDADDY_VERSION`](../../STEPDADDY_VERSION) first, then sync local `VERSION` / run `./scripts/sync-version.sh`.
 
 2. Update [`CHANGELOG.md`](../CHANGELOG.md) — move `Unreleased` items into a dated section.
 
@@ -81,11 +82,11 @@ After publish, set `apkUrl` in:
 
 ```json
 {
-  "versionCode": 10300,
-  "versionName": "1.3.0-about-update",
+  "versionCode": 20000,
+  "versionName": "2.0.0",
   "baseTiviMateVersion": "4.6.1",
-  "apkUrl": "https://github.com/thothassistantai-web/tivimate-daddy/releases/download/tivimate-daddy-v1.3.0-about-update/TiviMate-4.6.1-StepDaddy-1.3.0-about-update.apk",
-  "apkFileName": "TiviMate-4.6.1-StepDaddy-1.3.0-about-update.apk",
+  "apkUrl": "https://github.com/thothassistantai-web/tivimate-daddy/releases/download/tivimate-daddy-v2.0.0/TiviMate-4.6.1-StepDaddy-2.0.0.apk",
+  "apkFileName": "TiviMate-4.6.1-StepDaddy-2.0.0.apk",
   "stableApkPath": "TiviMate-4.6.1-StepDaddy.apk",
   "releaseNotes": "See CHANGELOG.md",
   "mandatory": false

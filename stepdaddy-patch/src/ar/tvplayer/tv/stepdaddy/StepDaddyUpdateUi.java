@@ -11,7 +11,6 @@ import android.os.Looper;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 
 public final class StepDaddyUpdateUi {
@@ -20,7 +19,19 @@ public final class StepDaddyUpdateUi {
     private static final String PREF_VERSION_KEY = "version";
     private static final String PREF_STEPDADDY_CHECK_KEY = "stepdaddyCheckUpdate";
     private static final String PREFERENCE_CLASS = "androidx.preference.Preference";
-    private static final String PREF_FRAGMENT_CLASS = "androidx.preference.PreferenceFragmentCompat";
+    private static final String PREF_FRAGMENT_CLASS =
+        "androidx.preference.PreferenceFragmentCompat";
+
+    // TiViMate obfuscates androidx.preference method names; map the ones we need.
+    private static final String OBF_FIND_PREFERENCE = "\u058f";
+    private static final String OBF_GET_PREFERENCE_SCREEN = "\u0788";
+    private static final String OBF_SET_SUMMARY = "\u0620";
+    private static final String OBF_SET_TITLE = "\u058f";
+    private static final String OBF_GET_SUMMARY = "\u0787";
+    private static final String OBF_SET_ENABLED = "\u0780";
+    private static final String OBF_SET_VISIBLE = "\u0782";
+    private static final String OBF_SET_KEY = "\u0780";
+    private static final String OBF_ADD_PREFERENCE = "\u058f";
 
     private static volatile boolean manualCheckRunning;
 
@@ -117,7 +128,8 @@ public final class StepDaddyUpdateUi {
             @Override
             public void run() {
                 try {
-                    StepDaddyUpdateChecker.ReleaseInfo release = StepDaddyUpdateChecker.fetchLatest(context);
+                    StepDaddyUpdateChecker.ReleaseInfo release =
+                        StepDaddyUpdateChecker.fetchLatest(context);
                     StepDaddyPrefs.setLastUpdateCheckMs(context, System.currentTimeMillis());
                     if (release == null) {
                         return;
@@ -143,21 +155,25 @@ public final class StepDaddyUpdateUi {
             check = createCheckPreference(fragment, context);
         }
         if (check != null) {
-            invokePreference(check, "setEnabled", boolean.class, true);
-            invokePreference(check, "setVisible", boolean.class, true);
-            invokePreference(check, "setTitle", CharSequence.class, "Check for StepDaddy update");
+            invokePreference(check, OBF_SET_ENABLED, boolean.class, true);
+            invokePreference(check, OBF_SET_VISIBLE, boolean.class, true);
+            invokePreference(
+                check,
+                OBF_SET_TITLE,
+                CharSequence.class,
+                "Check for StepDaddy update"
+            );
             refreshUpdatePreferenceSummary(fragment, context);
-            setPreferenceClickListener(check, fragment);
         }
         Object version = findPreference(fragment, PREF_VERSION_KEY);
         if (version != null) {
             CharSequence base = preferenceSummary(version);
             String baseText = base == null ? "" : base.toString();
-            String patchLine = "StepDaddy patch " + StepDaddyConstants.PATCH_VERSION;
+            String patchLine = "StepDaddy " + StepDaddyConstants.PATCH_VERSION;
             if (!baseText.contains("StepDaddy")) {
                 invokePreference(
                     version,
-                    "setSummary",
+                    OBF_SET_SUMMARY,
                     CharSequence.class,
                     baseText.isEmpty() ? patchLine : baseText + "\n" + patchLine
                 );
@@ -170,59 +186,32 @@ public final class StepDaddyUpdateUi {
             Class<?> prefClass = Class.forName(PREFERENCE_CLASS);
             Constructor<?> ctor = prefClass.getConstructor(Context.class);
             Object preference = ctor.newInstance(context);
-            invokePreference(preference, "setKey", String.class, PREF_STEPDADDY_CHECK_KEY);
+            invokePreference(preference, OBF_SET_KEY, String.class, PREF_STEPDADDY_CHECK_KEY);
             invokePreference(
                 preference,
-                "setTitle",
+                OBF_SET_TITLE,
                 CharSequence.class,
                 "Check for StepDaddy update"
             );
             invokePreference(
                 preference,
-                "setSummary",
+                OBF_SET_SUMMARY,
                 CharSequence.class,
                 "Self-signed APK from GitHub"
             );
-            Method screenMethod = Class.forName(PREF_FRAGMENT_CLASS).getMethod("getPreferenceScreen");
+            Method screenMethod = Class.forName(PREF_FRAGMENT_CLASS).getMethod(
+                OBF_GET_PREFERENCE_SCREEN
+            );
             Object screen = screenMethod.invoke(fragment);
             if (screen == null) {
                 return null;
             }
-            Method add = screen.getClass().getMethod("addPreference", prefClass);
+            Method add = screen.getClass().getMethod(OBF_ADD_PREFERENCE, prefClass);
             add.invoke(screen, preference);
             return preference;
         } catch (Exception error) {
             StepDaddyLog.w("Could not add update preference", error);
             return null;
-        }
-    }
-
-    private static void setPreferenceClickListener(Object preference, Object fragment) {
-        try {
-            Class<?> listenerClass = Class.forName(
-                "androidx.preference.Preference$OnPreferenceClickListener"
-            );
-            Object listener = java.lang.reflect.Proxy.newProxyInstance(
-                listenerClass.getClassLoader(),
-                new Class<?>[] { listenerClass },
-                new InvocationHandler() {
-                    @Override
-                    public Object invoke(Object proxy, Method method, Object[] args) {
-                        if ("onPreferenceClick".equals(method.getName())) {
-                            onManualCheck(fragment);
-                            return true;
-                        }
-                        return false;
-                    }
-                }
-            );
-            Method setListener = preference.getClass().getMethod(
-                "setOnPreferenceClickListener",
-                listenerClass
-            );
-            setListener.invoke(preference, listener);
-        } catch (Exception error) {
-            StepDaddyLog.w("Could not set update click listener", error);
         }
     }
 
@@ -238,12 +227,12 @@ public final class StepDaddyUpdateUi {
         int availableCode = StepDaddyPrefs.updateAvailableCode(context);
         String summary;
         if (!available.isEmpty() && availableCode > StepDaddyConstants.VERSION_CODE) {
-            summary = "Update available: " + available;
+            summary = "Update available: " + available + " — tap to download";
         } else {
             summary = "Current: " + StepDaddyConstants.PATCH_VERSION
                 + " — self-signed GitHub release";
         }
-        invokePreference(check, "setSummary", CharSequence.class, summary);
+        invokePreference(check, OBF_SET_SUMMARY, CharSequence.class, summary);
     }
 
     private static void setCheckingIndicator(Object fragment, boolean checking) {
@@ -257,8 +246,8 @@ public final class StepDaddyUpdateUi {
 
     private static Object findPreference(Object fragment, String key) {
         try {
-            Method method = Class.forName(PREF_FRAGMENT_CLASS).getMethod(
-                "findPreference",
+            Method method = fragment.getClass().getMethod(
+                OBF_FIND_PREFERENCE,
                 CharSequence.class
             );
             return method.invoke(fragment, key);
@@ -270,7 +259,7 @@ public final class StepDaddyUpdateUi {
 
     private static CharSequence preferenceSummary(Object preference) {
         try {
-            Method method = preference.getClass().getMethod("getSummary");
+            Method method = preference.getClass().getMethod(OBF_GET_SUMMARY);
             Object value = method.invoke(preference);
             return value instanceof CharSequence ? (CharSequence) value : null;
         } catch (Exception error) {

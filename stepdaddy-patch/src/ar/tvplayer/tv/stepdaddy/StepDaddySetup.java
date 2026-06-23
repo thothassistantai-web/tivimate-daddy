@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Handler;
@@ -24,20 +26,59 @@ public final class StepDaddySetup {
     private static final long MAX_WAIT_MS = 180_000L;
     private static final long PLAYLIST_DB_POLL_MS = 2_000L;
     private static final long PLAYLIST_DB_MAX_WAIT_MS = 90_000L;
+    private static final int SETUP_MISS_RESET_THRESHOLD = 3;
 
     private StepDaddySetup() {
+    }
+
+    public static void detectUpgrade(Context context) {
+        Context app = context.getApplicationContext();
+        int lastPatch = StepDaddyPrefs.lastPatchVersion(app);
+        int currentPatch = StepDaddyConstants.VERSION_CODE;
+        long lastApp = StepDaddyPrefs.lastAppVersionCode(app);
+        long currentApp = readInstalledVersionCode(app);
+
+        boolean patchUpgraded = lastPatch > 0 && currentPatch > lastPatch;
+        boolean appUpgraded = lastApp > 0L && currentApp > lastApp;
+        if (patchUpgraded || appUpgraded) {
+            StepDaddyPrefs.setUpgradeJustCompleted(app, true);
+            StepDaddyLog.i(
+                "Upgrade detected patch=" + lastPatch + "->" + currentPatch
+                    + " app=" + lastApp + "->" + currentApp
+            );
+        }
+
+        if (currentPatch != lastPatch) {
+            StepDaddyPrefs.setLastPatchVersion(app, currentPatch);
+        }
+        if (currentApp > 0L && currentApp != lastApp) {
+            StepDaddyPrefs.setLastAppVersionCode(app, currentApp);
+        }
+    }
+
+    public static void clearUpgradeSession(Context context) {
+        if (StepDaddyPrefs.isUpgradeJustCompleted(context)) {
+            StepDaddyPrefs.setUpgradeJustCompleted(context, false);
+            StepDaddyLog.i("Post-upgrade session ended; auto-setup allowed next launch");
+        }
     }
 
     public static void runAutoSetupIfNeeded(Context context) {
         if (!StepDaddyPrefs.isAutoSetupEnabled(context)) {
             return;
         }
-        refreshSetupState(context);
-        if (StepDaddyPrefs.isSetupDone(context) && hasGatewayPlaylist(context)) {
-            StepDaddyLog.i("Setup done + playlist in DB; skipping auto-setup");
+        if (StepDaddyPrefs.isUpgradeJustCompleted(context)) {
+            StepDaddyLog.i("Post-upgrade session; skipping auto-setup");
+            refreshSetupState(context);
             return;
         }
-        if (hasGatewayPlaylist(context)) {
+        refreshSetupState(context);
+        if (isConfigured(context)) {
+            StepDaddyLog.i("Playlist configured in DB; skipping auto-setup");
+            return;
+        }
+        if (StepDaddyPrefs.isSetupDone(context) && hasGatewayPlaylist(context)) {
+            StepDaddyLog.i("Setup done + gateway playlist in DB; skipping auto-setup");
             return;
         }
         if (StepDaddyPrefs.isWizardPending(context)) {
@@ -205,17 +246,44 @@ public final class StepDaddySetup {
 
     static void refreshSetupState(Context context) {
         Context app = context.getApplicationContext();
-        if (hasGatewayPlaylist(app)) {
-            confirmSetupComplete(app);
+        if (isConfigured(app)) {
+            StepDaddyPrefs.clearSetupMissCount(app);
+            if (hasGatewayPlaylist(app)) {
+                confirmSetupComplete(app);
+            }
             return;
         }
-        if (StepDaddyPrefs.isSetupDone(app) && !StepDaddyPrefs.isWizardPending(app)) {
+        if (!StepDaddyPrefs.isSetupDone(app) || StepDaddyPrefs.isWizardPending(app)) {
+            return;
+        }
+        if (!StepDaddyDb.isTvPlayerDbReadable(app)) {
+            int misses = StepDaddyPrefs.incrementSetupMissCount(app);
+            StepDaddyLog.i("setupDone held; TvPlayer.db not readable yet (miss " + misses + ")");
+            return;
+        }
+        int playlistCount = StepDaddyDb.playlistCount(app);
+        if (playlistCount > 0) {
+            StepDaddyPrefs.clearSetupMissCount(app);
+            return;
+        }
+        int misses = StepDaddyPrefs.incrementSetupMissCount(app);
+        if (misses >= SETUP_MISS_RESET_THRESHOLD) {
             StepDaddyPrefs.setSetupDone(app, false);
-            StepDaddyLog.w("setupDone was true but gateway playlist missing; reset");
+            StepDaddyPrefs.clearSetupMissCount(app);
+            StepDaddyLog.w("setupDone reset after repeated misses with empty playlist DB");
+        } else {
+            StepDaddyLog.i("setupDone held; gateway playlist miss " + misses + "/" + SETUP_MISS_RESET_THRESHOLD);
         }
     }
 
+    static boolean isConfigured(Context context) {
+        return StepDaddyDb.playlistCount(context) > 0 || hasGatewayPlaylist(context);
+    }
+
     static boolean hasGatewayPlaylist(Context context) {
+        if (StepDaddyDb.hasGatewayPlaylistUrl(context)) {
+            return true;
+        }
         return hasPlaylistUrl(context, "127.0.0.1:3000")
             || hasPlaylistUrl(context, "tivimate-playlist");
     }
@@ -361,6 +429,20 @@ public final class StepDaddySetup {
             }
         } catch (Exception error) {
             StepDaddyLog.w("Failed to launch playlist wizard", error);
+        }
+    }
+
+    private static long readInstalledVersionCode(Context context) {
+        try {
+            PackageManager pm = context.getPackageManager();
+            PackageInfo info = pm.getPackageInfo(context.getPackageName(), 0);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                return info.getLongVersionCode();
+            }
+            return info.versionCode;
+        } catch (Exception error) {
+            StepDaddyLog.w("readInstalledVersionCode failed", error);
+            return 0L;
         }
     }
 }

@@ -237,10 +237,10 @@ public final class StepDaddyPlayer {
         if (bootTuneScheduled || activity == null) {
             return;
         }
+        // Only tune when gateway (or admin) explicitly saved GET /boot-tune/{n}.
+        // Do not fall back to DEFAULT_BOOT_TUNE_CHANNEL — that overwrote TiViMate's
+        // native last-channel restore (e.g. channel 51 = Fox 23 on every resume).
         int channel = StepDaddyPrefs.bootTuneChannel(activity);
-        if (channel <= 0 && StepDaddyPrefs.isSetupDone(activity)) {
-            channel = StepDaddyConstants.DEFAULT_BOOT_TUNE_CHANNEL;
-        }
         if (channel <= 0) {
             return;
         }

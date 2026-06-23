@@ -18,8 +18,70 @@ final class StepDaddyDb {
         return scalarInt(context, "SELECT COUNT(*) FROM playlists", null);
     }
 
+    static boolean isTvPlayerDbReadable(Context context) {
+        File dbFile = context.getDatabasePath("TvPlayer.db");
+        if (!dbFile.exists() || dbFile.length() == 0L) {
+            return false;
+        }
+        SQLiteDatabase database = null;
+        try {
+            database = openReadOnly(context);
+            return database != null;
+        } finally {
+            if (database != null) {
+                database.close();
+            }
+        }
+    }
+
     static int channelCount(Context context) {
         return scalarInt(context, "SELECT COUNT(*) FROM channels", null);
+    }
+
+    static boolean hasGatewayPlaylistUrl(Context context) {
+        return hasPlaylistUrlLike(context, "%127.0.0.1%")
+            || hasPlaylistUrlLike(context, "%localhost%")
+            || hasPlaylistUrlLike(context, "%tivimate-playlist%");
+    }
+
+    static PlaylistInfo firstPlaylist(Context context) {
+        SQLiteDatabase database = null;
+        Cursor cursor = null;
+        try {
+            database = openReadOnly(context);
+            if (database == null) {
+                return null;
+            }
+            cursor = database.rawQuery(
+                "SELECT name, url, channel_count FROM playlists "
+                    + "ORDER BY COALESCE(position, id) ASC LIMIT 1",
+                null
+            );
+            if (cursor != null && cursor.moveToFirst()) {
+                String name = cursor.isNull(0) ? "" : cursor.getString(0);
+                String url = cursor.isNull(1) ? "" : cursor.getString(1);
+                int playlistChannels = cursor.isNull(2) ? 0 : cursor.getInt(2);
+                return new PlaylistInfo(name, url, playlistChannels);
+            }
+        } catch (Exception error) {
+            StepDaddyLog.w("firstPlaylist failed", error);
+        } finally {
+            closeQuietly(cursor, database);
+        }
+        return null;
+    }
+
+    static String redactPlaylistUrl(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            return "";
+        }
+        String trimmed = url.trim();
+        int query = trimmed.indexOf('?');
+        if (query > 0) {
+            String base = trimmed.substring(0, query);
+            return base + "?…";
+        }
+        return trimmed;
     }
 
     static JSONArray listChannels(Context context, int limit) {
@@ -160,6 +222,25 @@ final class StepDaddyDb {
         return -1L;
     }
 
+    static final class PlaylistInfo {
+        final String name;
+        final String url;
+        final int channelCount;
+
+        PlaylistInfo(String name, String url, int channelCount) {
+            this.name = name == null ? "" : name;
+            this.url = url == null ? "" : url;
+            this.channelCount = channelCount;
+        }
+
+        boolean looksLikeGateway() {
+            String lower = url.toLowerCase();
+            return lower.contains("127.0.0.1")
+                || lower.contains("localhost")
+                || lower.contains("tivimate-playlist");
+        }
+    }
+
     static final class ChannelInfo {
         final long id;
         final int tvgChNo;
@@ -170,6 +251,14 @@ final class StepDaddyDb {
             this.tvgChNo = tvgChNo;
             this.name = name;
         }
+    }
+
+    private static boolean hasPlaylistUrlLike(Context context, String pattern) {
+        return scalarInt(
+            context,
+            "SELECT COUNT(*) FROM playlists WHERE url LIKE ?",
+            new String[]{pattern}
+        ) > 0;
     }
 
     private static int scalarInt(Context context, String sql, String[] args) {

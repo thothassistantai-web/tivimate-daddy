@@ -1,26 +1,41 @@
 #!/usr/bin/env bash
-# Sync research/tivimate-apk/VERSION → StepDaddyConstants.java PATCH_VERSION + VERSION_CODE.
+# Sync VERSION (or monorepo STEPDADDY_VERSION) → StepDaddyConstants.java PATCH_VERSION + VERSION_CODE.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MONOREPO_VERSION="${ROOT}/../STEPDADDY_VERSION"
 VERSION_FILE="${ROOT}/VERSION"
 CONSTANTS_JAVA="${ROOT}/stepdaddy-patch/src/ar/tvplayer/tv/stepdaddy/StepDaddyConstants.java"
 
-if [[ ! -f "${VERSION_FILE}" ]]; then
-  echo "ERROR: VERSION file not found at ${VERSION_FILE}" >&2
+read_prop() {
+  local file="$1"
+  local key="$2"
+  grep -E "^${key}=" "${file}" | head -1 | cut -d= -f2-
+}
+
+if [[ -f "${MONOREPO_VERSION}" ]]; then
+  PATCH_VERSION="$(read_prop "${MONOREPO_VERSION}" STEPDADDY_VERSION)"
+  VERSION_CODE="$(read_prop "${MONOREPO_VERSION}" VERSION_CODE)"
+  echo "==> Using monorepo ${MONOREPO_VERSION}"
+elif [[ -f "${VERSION_FILE}" ]]; then
+  PATCH_VERSION="$(read_prop "${VERSION_FILE}" PATCH_VERSION)"
+  VERSION_CODE="$(read_prop "${VERSION_FILE}" VERSION_CODE)"
+else
+  echo "ERROR: Neither ${MONOREPO_VERSION} nor ${VERSION_FILE} found" >&2
   exit 1
 fi
 
-PATCH_VERSION="$(grep -E '^PATCH_VERSION=' "${VERSION_FILE}" | head -1 | cut -d= -f2-)"
-VERSION_CODE="$(grep -E '^VERSION_CODE=' "${VERSION_FILE}" | head -1 | cut -d= -f2-)"
-GITHUB_RELEASE_REPO="$(grep -E '^GITHUB_RELEASE_REPO=' "${VERSION_FILE}" | head -1 | cut -d= -f2-)"
+GITHUB_RELEASE_REPO=""
+if [[ -f "${VERSION_FILE}" ]]; then
+  GITHUB_RELEASE_REPO="$(read_prop "${VERSION_FILE}" GITHUB_RELEASE_REPO)"
+fi
 
 if [[ -z "${PATCH_VERSION}" ]]; then
-  echo "ERROR: PATCH_VERSION missing in ${VERSION_FILE}" >&2
+  echo "ERROR: PATCH_VERSION / STEPDADDY_VERSION missing" >&2
   exit 1
 fi
 if [[ -z "${VERSION_CODE}" ]]; then
-  echo "ERROR: VERSION_CODE missing in ${VERSION_FILE}" >&2
+  echo "ERROR: VERSION_CODE missing" >&2
   exit 1
 fi
 

@@ -7,16 +7,18 @@ Works **with StepDaddy Gateway** (recommended) or is **non-functional alone** (n
 | | |
 |---|---|
 | **Output APK** | `research/tivimate-apk/TiviMate-4.6.1-StepDaddy.apk` |
-| **Patch version** | `1.3.0-about-update` — canonical in [`../VERSION`](../VERSION), synced to `StepDaddyConstants.PATCH_VERSION` |
+| **Patch version** | `2.0.0` — canonical in [`../VERSION`](../VERSION) or monorepo [`STEPDADDY_VERSION`](../../STEPDADDY_VERSION), synced to `StepDaddyConstants.PATCH_VERSION` |
 | **TiViMate base** | ONN USB mod (`tivimate-usb.apk`, versionCode 4610) |
-| **Gateway pairing** | `1.0.34+` recommended (`GET /tivimate-handshake`) |
+| **Gateway pairing** | `2.0.0` recommended (`GET /tivimate-handshake`) |
 | **Log tag** | `StepDaddyBridge` |
 
 ## Patch version history
 
 | `patchVersion` | Changes |
 |----------------|---------|
-| **`1.3.0-about-update`** | **Current** — in-app update checker in Settings → About (GitHub releases for `thothassistantai-web/tivimate-daddy`, self-signed APK install via FileProvider) |
+| **`2.0.0`** | **Current** — suite alignment with Gateway; post-upgrade setup suppression; boot-tune only when explicitly saved |
+| `1.3.2-update-playlist-state` | Playlist state API on `/state` and `/status` |
+| `1.3.0-about-update` | In-app update checker in Settings → About (GitHub releases for `thothassistantai-web/tivimate-daddy`, self-signed APK install via FileProvider) |
 | `1.2.1-boot-tune-safe` | 5 s defer before boot-tune so Room/SQLite WAL recovery finishes (fixes cold-boot crash when gateway auto-launches TiviMate) |
 | `1.2.0-boot-fast` | Shorter boot-tune defer; faster first channel but crash risk on parallel DB access |
 | `1.1.0-bidir` | Bidirectional API: `GET /state`, `GET /channels`, `POST` events to gateway `/tivimate-events`, `wizardPhase`, `patchVersion` in telemetry |

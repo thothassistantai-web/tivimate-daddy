@@ -1,11 +1,11 @@
 package ar.tvplayer.tv.stepdaddy;
 
 public final class StepDaddyConstants {
-    public static final String PATCH_VERSION = "1.3.0-about-update";
-    public static final int VERSION_CODE = 10300;
+    public static final String PATCH_VERSION = "2.0.0";
+    public static final int VERSION_CODE = 20000;
     public static final String GITHUB_RELEASE_REPO = "thothassistantai-web/tivimate-daddy";
     public static final String GITHUB_RELEASE_TAG_PREFIX = "tivimate-daddy-v";
-    public static final String GITHUB_USER_AGENT = "TiviMate-StepDaddy-Updater/1.3";
+    public static final String GITHUB_USER_AGENT = "TiviMate-StepDaddy-Updater/2.0";
     public static final String APK_ASSET_PREFIX = "TiviMate-4.6.1-StepDaddy-";
     public static final String EVENTS_PATH = "/tivimate-events";
 
@@ -19,6 +19,10 @@ public final class StepDaddyConstants {
     public static final String KEY_UPDATE_AVAILABLE = "update_available_version";
     public static final String KEY_UPDATE_AVAILABLE_CODE = "update_available_code";
     public static final String KEY_LAST_UPDATE_CHECK_MS = "last_update_check_ms";
+    public static final String KEY_LAST_PATCH_VERSION = "2.0.0";
+    public static final String KEY_LAST_APP_VERSION_CODE = "last_app_version_code";
+    public static final String KEY_UPGRADE_JUST_COMPLETED = "upgrade_just_completed";
+    public static final String KEY_SETUP_MISS_COUNT = "setup_miss_count";
 
     public static final String ACTION_SETUP = "ar.tvplayer.tv.action.STEPDADDY_SETUP";
     public static final String ACTION_TUNE = "ar.tvplayer.tv.action.STEPDADDY_TUNE";

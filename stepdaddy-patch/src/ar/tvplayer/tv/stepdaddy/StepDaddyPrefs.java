@@ -95,4 +95,44 @@ final class StepDaddyPrefs {
     static void setLastUpdateCheckMs(Context context, long whenMs) {
         prefs(context).edit().putLong(StepDaddyConstants.KEY_LAST_UPDATE_CHECK_MS, whenMs).apply();
     }
+
+    static int lastPatchVersion(Context context) {
+        return prefs(context).getInt(StepDaddyConstants.KEY_LAST_PATCH_VERSION, 0);
+    }
+
+    static void setLastPatchVersion(Context context, int versionCode) {
+        prefs(context).edit().putInt(StepDaddyConstants.KEY_LAST_PATCH_VERSION, versionCode).apply();
+    }
+
+    static long lastAppVersionCode(Context context) {
+        return prefs(context).getLong(StepDaddyConstants.KEY_LAST_APP_VERSION_CODE, 0L);
+    }
+
+    static void setLastAppVersionCode(Context context, long versionCode) {
+        prefs(context).edit().putLong(StepDaddyConstants.KEY_LAST_APP_VERSION_CODE, versionCode).apply();
+    }
+
+    static boolean isUpgradeJustCompleted(Context context) {
+        return prefs(context).getBoolean(StepDaddyConstants.KEY_UPGRADE_JUST_COMPLETED, false);
+    }
+
+    static void setUpgradeJustCompleted(Context context, boolean completed) {
+        prefs(context).edit()
+            .putBoolean(StepDaddyConstants.KEY_UPGRADE_JUST_COMPLETED, completed)
+            .apply();
+    }
+
+    static int setupMissCount(Context context) {
+        return prefs(context).getInt(StepDaddyConstants.KEY_SETUP_MISS_COUNT, 0);
+    }
+
+    static int incrementSetupMissCount(Context context) {
+        int next = setupMissCount(context) + 1;
+        prefs(context).edit().putInt(StepDaddyConstants.KEY_SETUP_MISS_COUNT, next).apply();
+        return next;
+    }
+
+    static void clearSetupMissCount(Context context) {
+        prefs(context).edit().remove(StepDaddyConstants.KEY_SETUP_MISS_COUNT).apply();
+    }
 }

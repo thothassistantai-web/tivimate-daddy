@@ -17,6 +17,11 @@ final class StepDaddyState {
     static final String PHASE_IMPORTING = "importing";
     static final String PHASE_DONE = "done";
 
+    static final String REASON_NO_PLAYLIST = "no_playlist";
+    static final String REASON_WIZARD_INCOMPLETE = "wizard_incomplete";
+    static final String REASON_GATEWAY_TEST_URL = "gateway_test_url";
+    static final String REASON_READY = "ready";
+
     static final String MODE_FULLSCREEN = "fullscreen";
     static final String MODE_GUIDE = "guide";
     static final String MODE_PIP = "pip";
@@ -51,9 +56,27 @@ final class StepDaddyState {
         StepDaddySetup.refreshSetupState(app);
         JSONObject json = new JSONObject();
         try {
-            json.put("setupDone", StepDaddyPrefs.isSetupDone(app));
-            json.put("wizardPending", StepDaddyPrefs.isWizardPending(app));
+            int playlistCount = StepDaddyDb.playlistCount(app);
+            int channelCount = StepDaddyDb.channelCount(app);
+            boolean wizardPending = StepDaddyPrefs.isWizardPending(app);
+            boolean setupDone = StepDaddyPrefs.isSetupDone(app);
+            boolean hasGatewayUrl = StepDaddyDb.hasGatewayPlaylistUrl(app);
+            StepDaddyDb.PlaylistInfo playlist = StepDaddyDb.firstPlaylist(app);
+            String stateReason = computeStateReason(
+                playlistCount,
+                channelCount,
+                wizardPending,
+                setupDone,
+                wizardPhase(),
+                hasGatewayUrl,
+                playlist
+            );
+
+            json.put("setupDone", setupDone);
+            json.put("wizardPending", wizardPending);
             json.put("wizardPhase", wizardPhase());
+            json.put("hasPlaylist", channelCount > 0);
+            json.put("stateReason", stateReason);
             json.put("currentChannelId", StepDaddyPlayer.lastChannelId());
             json.put("currentChannelNo", StepDaddyPlayer.lastChannelNo());
             String name = StepDaddyPlayer.lastChannelName();
@@ -62,14 +85,74 @@ final class StepDaddyState {
             }
             json.put("isPlaying", detectIsPlaying(app));
             json.put("playerMode", detectPlayerMode(app));
-            json.put("playlistCount", StepDaddyDb.playlistCount(app));
-            json.put("channelCount", StepDaddyDb.channelCount(app));
+            json.put("playlistCount", playlistCount);
+            json.put("channelCount", channelCount);
+            if (playlist != null) {
+                if (!playlist.name.isEmpty()) {
+                    json.put("playlistName", playlist.name);
+                }
+                String redacted = StepDaddyDb.redactPlaylistUrl(playlist.url);
+                if (!redacted.isEmpty()) {
+                    json.put("playlistUrl", redacted);
+                }
+            }
             json.put("gatewayBase", StepDaddyPrefs.gatewayBase(app));
             json.put("patchVersion", StepDaddyConstants.PATCH_VERSION);
         } catch (Exception error) {
             StepDaddyLog.w("buildStateJson failed", error);
         }
         return json;
+    }
+
+    static String computeStateReason(
+        int playlistCount,
+        int channelCount,
+        boolean wizardPending,
+        boolean setupDone,
+        String phase,
+        boolean hasGatewayUrl,
+        StepDaddyDb.PlaylistInfo playlist
+    ) {
+        boolean gatewayLike = hasGatewayUrl
+            || (playlist != null && playlist.looksLikeGateway());
+        boolean activeWizard = wizardPending || isActiveWizardPhase(phase);
+
+        if (activeWizard) {
+            if (gatewayLike || isGatewayWizardPhase(phase)) {
+                return REASON_GATEWAY_TEST_URL;
+            }
+            return REASON_WIZARD_INCOMPLETE;
+        }
+        if (playlistCount <= 0) {
+            return REASON_NO_PLAYLIST;
+        }
+        if (gatewayLike && channelCount <= 0) {
+            return REASON_GATEWAY_TEST_URL;
+        }
+        if (channelCount > 0) {
+            return REASON_READY;
+        }
+        if (setupDone && gatewayLike) {
+            return REASON_READY;
+        }
+        if (playlistCount > 0) {
+            return REASON_WIZARD_INCOMPLETE;
+        }
+        return REASON_NO_PLAYLIST;
+    }
+
+    private static boolean isActiveWizardPhase(String phase) {
+        return PHASE_URL.equals(phase)
+            || PHASE_STATUS.equals(phase)
+            || PHASE_EPG.equals(phase)
+            || PHASE_IMPORTING.equals(phase);
+    }
+
+    private static boolean isGatewayWizardPhase(String phase) {
+        return PHASE_URL.equals(phase)
+            || PHASE_STATUS.equals(phase)
+            || PHASE_EPG.equals(phase)
+            || PHASE_IMPORTING.equals(phase);
     }
 
     private static boolean detectIsPlaying(Context context) {
