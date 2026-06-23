@@ -1,0 +1,122 @@
+# TiviMate Daddy release build and optional GitHub publish.
+# Self-signed APK — same stepdaddy.keystore must be used across patch releases for in-place upgrades.
+# Does NOT publish without GH_RELEASE_TOKEN. Manual release: docs/RELEASE.md
+
+name: TiviMate Daddy Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Create GitHub draft release (requires GH_RELEASE_TOKEN secret)"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "tivimate-daddy-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Read patch version
+        id: version
+        run: |
+          PATCH_VERSION=$(grep '^PATCH_VERSION=' VERSION | cut -d= -f2-)
+          echo "patch_version=${PATCH_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=tivimate-daddy-v${PATCH_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Restore decoded base and keystore
+        env:
+          DECODED_CACHE_B64: ${{ secrets.TIVIMATE_DECODED_CACHE_B64 }}
+          KEYSTORE_B64: ${{ secrets.STEPDADDY_KEYSTORE_B64 }}
+        run: |
+          if [[ -n "${DECODED_CACHE_B64}" ]]; then
+            echo "${DECODED_CACHE_B64}" | base64 -d | tar -xz -C stepdaddy-patch
+          else
+            echo "::warning::TIVIMATE_DECODED_CACHE_B64 not set — build requires stepdaddy-patch/decoded/"
+          fi
+          if [[ -n "${KEYSTORE_B64}" ]]; then
+            mkdir -p stepdaddy-patch/out
+            echo "${KEYSTORE_B64}" | base64 -d > stepdaddy-patch/out/stepdaddy.keystore
+          fi
+
+      - name: Sync version and build release
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+        run: |
+          chmod +x scripts/sync-version.sh scripts/build-release.sh stepdaddy-patch/build.sh
+          ./scripts/build-release.sh
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tivimate-daddy-${{ steps.version.outputs.patch_version }}
+          path: |
+            TiviMate-4.6.1-StepDaddy.apk
+            release/
+
+  publish:
+    needs: build
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/tivimate-daddy-v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read patch version
+        id: version
+        run: |
+          PATCH_VERSION=$(grep '^PATCH_VERSION=' VERSION | cut -d= -f2-)
+          echo "patch_version=${PATCH_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=tivimate-daddy-v${PATCH_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tivimate-daddy-${{ steps.version.outputs.patch_version }}
+          path: artifacts
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+        run: |
+          PATCH="${{ steps.version.outputs.patch_version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          ASSET="artifacts/TiviMate-4.6.1-StepDaddy-${PATCH}.apk"
+          NOTES="artifacts/RELEASE_NOTES-${PATCH}.md"
+          MANIFEST="artifacts/update-manifest.json"
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --draft \
+            --title "TiviMate Daddy ${PATCH}" \
+            --notes-file "$NOTES" \
+            "$ASSET" "$MANIFEST"
+
+      - name: Publish skipped hint
+        if: failure()
+        run: |
+          echo "Draft release failed — likely missing GH_RELEASE_TOKEN."
+          echo "Download the build artifact and follow docs/RELEASE.md."

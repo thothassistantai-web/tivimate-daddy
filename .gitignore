@@ -1,0 +1,33 @@
+# Signing key — never commit
+stepdaddy-patch/out/stepdaddy.keystore
+*.keystore
+*.jks
+
+# Decoded mod base (bootstrap locally from tivimate-usb.apk — see docs/RELEASE.md)
+stepdaddy-patch/decoded/
+
+# Build intermediates
+stepdaddy-patch/out/
+*.dex
+*.class
+
+# APK outputs (publish via GitHub Releases only)
+TiviMate-4.6.1-StepDaddy.apk
+release/*.apk
+tivimate-usb.apk
+
+# Research / local-only trees
+apktool-*/
+decompiled*/
+companion/
+extracted-res/
+v532/
+tools/bin/
+tools/lib/
+tools/README.md
+
+# OS / IDE
+.DS_Store
+*.swp
+.idea/
+.vscode/
